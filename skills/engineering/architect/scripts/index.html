@@ -134,7 +134,7 @@
 
   // What carries over from one render to the next: the page, and the zoom if it was changed.
   function snapshot() {
-    if (!viewer) return null;
+    if (!viewer || !viewer.graph) return null;
     const view = viewer.graph.view;
     const isZoomed = fitScale != null && Math.abs(view.scale - fitScale) > 1e-3;
     return { page: viewer.currentPage || 0,
@@ -162,6 +162,7 @@
     holder.replaceChildren(el);
     GraphViewer.createViewerForElement(el, v => {
       viewer = v;
+      if (!v.graph) return;   // setup deferred: the page lost its size meanwhile
       if (keep && keep.view) v.graph.view.scaleAndTranslate(...keep.view);
       else fitScale = v.graph.view.scale;
     });
@@ -199,7 +200,11 @@
       else if (!files.some(f => f.path === current)) select(files[0].path);
       renderList(files);
       const entry = files.find(f => f.path === current);
-      if (entry && entry.version !== version) await loadDiagram(current, entry.version);
+      // draw.io's viewer defers its setup while its container has no width
+      // (a hidden pane) and only resumes on a DOM attribute change, which
+      // showing the pane never makes: draw once the page has a size.
+      const hasSize = holder.offsetWidth > 0;
+      if (entry && entry.version !== version && hasSize) await loadDiagram(current, entry.version);
     } catch (e) {
       setStatus('server unreachable');
     }
