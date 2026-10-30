@@ -14,29 +14,24 @@ Skills live in bucket folders under `skills/`:
 
 ## Rules
 
-- Every promoted skill has an entry in `.claude-plugin/plugin.json`'s `skills` array, a line in the top-level `README.md` and a line in its bucket's `README.md`, each linking the skill's `SKILL.md`. Skills in other buckets appear in none of them. README lines are grouped under **Model-invoked** or **User-invoked**.
+- Every promoted skill has a line in the top-level `README.md` and a line in its bucket's `README.md`, each linking the skill's `SKILL.md`. Skills in other buckets appear in neither. README lines are grouped under **Model-invoked** or **User-invoked**.
 - A `SKILL.md`'s `name` equals its folder name.
-- Code a skill runs lives in the skill's own folder (`scripts/`) and runs on Node 18+ with no dependencies, so skills.sh and the plugin ship it as is.
+- Code a skill runs lives in the skill's own folder (`scripts/`) and runs on Node 18+ with no dependencies, so skills.sh ships it as is.
 - English everywhere: skills, scripts, docs, commit messages.
-- Install commands live in `README.md` only.
+- skills.sh is the only install route, and its commands live in `README.md` only.
 
-`npm run check` enforces the first two rules and the version rule below.
+`npm run check` enforces the first two rules.
 
 ## Release
 
-Work happens on `main`, with no release branch. Unreleased commits there reach nobody on their own: managed installs (the Claude Code, Codex and Copilot plugin routes) update only when the plugin version changes, and skills.sh installs only on `npx skills update`.
+Work happens on `main`, with no release branch. `main` is what users get when they run `npx skills update`, so push only what works.
 
-1. Bump `version` in `package.json` and `.claude-plugin/plugin.json` together.
-2. Add the release to `CHANGELOG.md`.
-3. Run `npm test`, `npm run check` and `claude plugin validate .`. Its one expected warning is that the root `CLAUDE.md` is not loaded by the plugin: that file is for contributors.
-4. Commit, tag `vX.Y.Z`, push `main` and the tag.
+1. Try the change the way a stranger would: install the working copy in a fresh folder, then start a new agent session there.
 
-To try a change the way a stranger would, push it to `main` and install it in a fresh folder, then start a new agent session there:
+   ```bash
+   npx skills@latest add <path to this repo> -a claude-code -y
+   ```
 
-```bash
-npx skills@latest add jean-philippe-w/skills -a claude-code -y
-```
-
-## Local development
-
-`scripts/link-skills.sh` links every skill outside `misc/` and `deprecated/` into `~/.claude/skills` and `~/.agents/skills`, so edits here are live everywhere. Re-run it after adding, removing or renaming a skill.
+2. Run `npm test` and `npm run check`.
+3. For a release, bump `version` in `package.json`, add it to `CHANGELOG.md` and tag `vX.Y.Z`.
+4. Push `main` (and the tag).
