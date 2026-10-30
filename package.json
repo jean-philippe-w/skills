@@ -1,11 +1,11 @@
 {
-  "name": "wingertjp-skills",
+  "name": "jean-philippe-w-skills",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent skills by wingertjp: architect, a live draw.io diagram viewer for any agent.",
+  "description": "Agent skills by jean-philippe-w: architect, a live draw.io diagram viewer for any agent.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wingertjp/skills"
+    "url": "https://github.com/jean-philippe-w/skills"
   },
   "license": "MIT",
   "bin": {

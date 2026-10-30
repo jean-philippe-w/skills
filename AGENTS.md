@@ -34,7 +34,7 @@ Work happens on `main`, with no release branch. Unreleased commits there reach n
 To try a change the way a stranger would, push it to `main` and install it in a fresh folder, then start a new agent session there:
 
 ```bash
-npx skills@latest add wingertjp/skills -a claude-code -y
+npx skills@latest add jean-philippe-w/skills -a claude-code -y
 ```
 
 ## Local development
