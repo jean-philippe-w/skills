@@ -1,0 +1,21 @@
+{
+  "name": "wingertjp",
+  "owner": {
+    "name": "Jean-Philippe WINGERT",
+    "url": "https://github.com/wingertjp"
+  },
+  "description": "wingertjp's agent skills, as an installable plugin.",
+  "plugins": [
+    {
+      "name": "wingertjp-skills",
+      "source": "./",
+      "description": "Agent skills by wingertjp: architect, a live draw.io diagram viewer for any agent.",
+      "category": "engineering",
+      "keywords": [
+        "skills",
+        "drawio",
+        "diagrams"
+      ]
+    }
+  ]
+}

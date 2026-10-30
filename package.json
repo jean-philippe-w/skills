@@ -1,0 +1,24 @@
+{
+  "name": "wingertjp-skills",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent skills by wingertjp: architect, a live draw.io diagram viewer for any agent.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wingertjp/skills"
+  },
+  "license": "MIT",
+  "bin": {
+    "architect": "skills/engineering/architect/scripts/viewer.mjs"
+  },
+  "files": [
+    "skills/engineering/architect/scripts"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check-repo.mjs"
+  }
+}

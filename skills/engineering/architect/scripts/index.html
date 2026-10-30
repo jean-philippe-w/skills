@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>architect</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff; --panel: #f5f5f4; --line: #e2e1de; --text: #1f1f1e;
+    --muted: #6b6a66; --accent: #2f6fdb; --accent-bg: #e6eefc; --ok: #2e7d32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #1b1b1a; --panel: #242423; --line: #3a3a38; --text: #ecebe8;
+      --muted: #a09f9a; --accent: #7aa7f5; --accent-bg: #2a3448; --ok: #5fbf68;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #1b1b1a; --panel: #242423; --line: #3a3a38; --text: #ecebe8;
+    --muted: #a09f9a; --accent: #7aa7f5; --accent-bg: #2a3448; --ok: #5fbf68;
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+         font: 13px/1.4 system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 6px 12px; flex-wrap: wrap;
+           background: var(--panel); border-bottom: 1px solid var(--line); }
+  header strong { font-size: 14px; }
+  #status { margin-left: auto; color: var(--muted); padding: 2px 10px; border-radius: 10px;
+            transition: background .3s, color .3s; }
+  #status.flash { background: var(--ok); color: #fff; }
+  .layout { flex: 1; display: flex; min-height: 0; }
+  aside { width: 240px; flex: none; overflow: auto; border-right: 1px solid var(--line);
+          background: var(--panel); padding: 6px; box-sizing: border-box; }
+  aside button { display: block; width: 100%; text-align: left; border: 0; border-radius: 6px;
+                 background: none; color: inherit; font: inherit; padding: 5px 8px;
+                 cursor: pointer; overflow-wrap: anywhere; }
+  aside button:hover { background: var(--line); }
+  aside button[aria-current="true"] { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  aside button small { display: block; color: var(--muted); font-weight: 400; }
+  main { flex: 1; position: relative; min-width: 0; }
+  #viewer { position: absolute; inset: 0; }
+  #message { position: absolute; inset: 0; display: none; align-items: center;
+             justify-content: center; color: var(--muted); text-align: center; padding: 16px; }
+  code { overflow-wrap: anywhere; }
+  @media (max-width: 640px) {
+    .layout { flex-direction: column; }
+    aside { width: auto; max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <strong>architect</strong>
+  <label><input type="checkbox" id="follow" checked> follow the last modified</label>
+  <span id="status">connecting…</span>
+</header>
+<div class="layout">
+  <aside id="files" aria-label="Diagrams"></aside>
+  <main>
+    <div id="viewer"></div>
+    <div id="message"></div>
+  </main>
+</div>
+<script src="/viewer-static.min.js"></script>
+<script>
+  const list = document.getElementById('files');
+  const follow = document.getElementById('follow');
+  const status = document.getElementById('status');
+  const holder = document.getElementById('viewer');
+  const message = document.getElementById('message');
+
+  let current = new URLSearchParams(location.search).get('file');
+  if (current) follow.checked = false;   // ?file=... pins one diagram
+  let version = null;    // version of the shown file
+  let viewer = null;     // current GraphViewer
+  let fitScale = null;   // scale right after the first render
+  let shownList = '';
+
+  function setStatus(text, flash) {
+    status.textContent = text;
+    if (flash) {
+      status.classList.add('flash');
+      setTimeout(() => status.classList.remove('flash'), 800);
+    }
+  }
+
+  function showMessage(html) {
+    message.innerHTML = html;
+    message.style.display = html ? 'flex' : 'none';
+  }
+
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  }
+
+  function ago(mtime) {
+    const s = Math.max(0, Math.round(Date.now() / 1000 - mtime));
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago';
+    return new Date(mtime * 1000).toLocaleDateString();
+  }
+
+  function renderList(files) {
+    // the current minute also refreshes the "… ago" labels
+    const key = files.map(f => f.path + f.version).join('|') + current
+              + Math.floor(Date.now() / 60000);
+    if (key === shownList) return;
+    shownList = key;
+    list.innerHTML = '';
+    for (const f of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+      const b = document.createElement('button');
+      b.setAttribute('aria-current', f.path === current);
+      b.textContent = f.path;
+      const when = document.createElement('small');
+      when.textContent = ago(f.mtime);
+      b.appendChild(when);
+      b.onclick = () => { follow.checked = false; select(f.path); poll(); };
+      list.appendChild(b);
+    }
+  }
+
+  function select(path) {
+    if (path === current) return;
+    current = path;
+    version = null;
+    fitScale = null;
+    history.replaceState(null, '', follow.checked ? location.pathname
+                                                  : '?file=' + encodeURIComponent(path));
+  }
+
+  // What carries over from one render to the next: the page, and the zoom if it was changed.
+  function snapshot() {
+    if (!viewer) return null;
+    const view = viewer.graph.view;
+    const isZoomed = fitScale != null && Math.abs(view.scale - fitScale) > 1e-3;
+    return { page: viewer.currentPage || 0,
+             view: isZoomed ? [view.scale, view.translate.x, view.translate.y] : null };
+  }
+
+  function render(xml, keep) {
+    const el = document.createElement('div');
+    el.className = 'mxgraph';
+    // inline size: without it the viewer takes the size of the drawing
+    el.style.width = '100%';
+    el.style.height = `calc(100% - ${GraphViewer.prototype.toolbarHeight || 26}px)`;
+    el.setAttribute('data-mxgraph', JSON.stringify({
+      xml,
+      page: keep ? keep.page : 0,
+      nav: true,
+      resize: false,
+      'auto-fit': true,
+      center: true,
+      'dark-mode': 'auto',
+      editable: false,
+      'toolbar-nohide': true,
+      toolbar: 'pages zoom layers tags' + (window.self === window.top ? ' lightbox' : ''),
+    }));
+    holder.replaceChildren(el);
+    GraphViewer.createViewerForElement(el, v => {
+      viewer = v;
+      if (keep && keep.view) v.graph.view.scaleAndTranslate(...keep.view);
+      else fitScale = v.graph.view.scale;
+    });
+  }
+
+  async function loadDiagram(file, newVersion) {
+    const res = await fetch('/diagram?file=' + encodeURIComponent(file) + '&ts=' + Date.now());
+    if (file !== current) return;   // another file was picked during the request
+    if (!res.ok) { showMessage('Cannot read <code>' + escapeHtml(file) + '</code>'); return; }
+    const xml = await res.text();
+    if (file !== current) return;
+    const keep = version === null ? null : snapshot();
+    version = newVersion;
+    showMessage('');
+    try {
+      render(xml, keep);
+      setStatus(file + (keep ? ' updated ' : ' shown ') + new Date().toLocaleTimeString(), !!keep);
+    } catch (e) {
+      showMessage('Unreadable diagram: ' + escapeHtml(e.message));
+    }
+  }
+
+  async function poll() {
+    try {
+      const data = await (await fetch('/api/files?ts=' + Date.now())).json();
+      const files = data.files;
+      if (!files.length) {
+        list.innerHTML = '';
+        holder.replaceChildren();
+        viewer = null;
+        showMessage('No <code>.drawio</code> file in<br><code>' + escapeHtml(data.root) + '</code>');
+        return;
+      }
+      if (follow.checked && files[0].path !== current) select(files[0].path);   // newest first
+      else if (!files.some(f => f.path === current)) select(files[0].path);
+      renderList(files);
+      const entry = files.find(f => f.path === current);
+      if (entry && entry.version !== version) await loadDiagram(current, entry.version);
+    } catch (e) {
+      setStatus('server unreachable');
+    }
+  }
+
+  follow.addEventListener('change', () => {
+    if (follow.checked) history.replaceState(null, '', location.pathname);
+    poll();
+  });
+
+  if (typeof GraphViewer === 'undefined') {
+    showMessage('viewer-static.min.js could not be loaded.');
+  } else {
+    poll();
+    setInterval(poll, 1000);
+  }
+</script>
+</body>
+</html>
