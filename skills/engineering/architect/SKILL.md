@@ -6,9 +6,9 @@ license: MIT
 
 # architect
 
-A local web page that draws a folder's `.drawio` files with draw.io's own renderer (viewer-static): diagram list, zoom, pages, layers, fullscreen. It re-reads the shown file every second, so an edit appears without a reload. Read-only.
+A local web page that draws a project's `.drawio` files with draw.io's own renderer (viewer-static): an explorer of the folders that hold diagrams, zoom, pages, layers, fullscreen. It re-reads the shown file every second, so an edit appears without a reload. Read-only.
 
-The viewer is `scripts/viewer.mjs` in this skill's folder: Node 18+, no dependencies.
+The viewer is `scripts/viewer.mjs` in this skill's folder: Node 18+, no dependencies. `<project>` is always the session's working directory, its root, even when the user names a subfolder: the explorer shows every folder with diagrams.
 
 ## Show the diagrams
 
@@ -18,13 +18,13 @@ The viewer is `scripts/viewer.mjs` in this skill's folder: Node 18+, no dependen
    - with a built-in browser (the agent's own browser tool, Claude Desktop's Browser pane), open it there;
    - otherwise `start <project> --open` opens it in the user's default browser.
 
-   Done when the diagram is on screen or the user has the URL.
+   Done when the diagram is on screen or the user has the URL. Leave the page open and the viewer running: they are for the user.
 
-The page follows the last modified `.drawio`: after editing a diagram, the page already open shows it. To pin one, add `?file=<path relative to the project>` to the URL.
+The page follows the last modified `.drawio`: after editing a diagram, the page already open shows it. To show one diagram, add `?file=<path relative to the project>` to the URL; this pins it.
 
 ## Stop
 
-The viewer runs in the background until stopped, even after the session ends.
+The viewer runs in the background until stopped, even after the session ends. Stop it when the user asks.
 
 - `viewer.mjs stop <project>` stops this folder's viewer; `stop --all` stops every viewer.
 - `viewer.mjs status` lists the running viewers.

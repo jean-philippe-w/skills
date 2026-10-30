@@ -40,6 +40,8 @@
   aside button:hover { background: var(--line); }
   aside button[aria-current="true"] { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
   aside button small { display: block; color: var(--muted); font-weight: 400; }
+  aside button.folder { display: flex; gap: 4px; font-weight: 500; }
+  aside button.folder .chevron { width: 10px; flex: none; color: var(--muted); }
   main { flex: 1; position: relative; min-width: 0; }
   #viewer { position: absolute; inset: 0; }
   #message { position: absolute; inset: 0; display: none; align-items: center;
@@ -58,7 +60,7 @@
   <span id="status">connecting…</span>
 </header>
 <div class="layout">
-  <aside id="files" aria-label="Diagrams"></aside>
+  <aside id="files" aria-label="Explorer"></aside>
   <main>
     <div id="viewer"></div>
     <div id="message"></div>
@@ -77,7 +79,16 @@
   let version = null;    // version of the shown file
   let viewer = null;     // current GraphViewer
   let fitScale = null;   // scale right after the first render
-  let shownList = '';
+  let shownTree = '';
+  let lastFiles = [];
+
+  // Collapsed explorer folders, kept per browser (storage may be unavailable).
+  const storage = {
+    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch { /* per-session only */ } },
+  };
+  const collapsed = new Set(JSON.parse(storage.get('architect:collapsed') || '[]'));
+  const saveCollapsed = () => storage.set('architect:collapsed', JSON.stringify([...collapsed]));
 
   function setStatus(text, flash) {
     status.textContent = text;
@@ -104,27 +115,89 @@
     return new Date(mtime * 1000).toLocaleDateString();
   }
 
-  function renderList(files) {
-    // the current minute also refreshes the "… ago" labels
-    const key = files.map(f => f.path + f.version).join('|') + current
-              + Math.floor(Date.now() / 60000);
-    if (key === shownList) return;
-    shownList = key;
-    list.innerHTML = '';
-    for (const f of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+  // The explorer: the folders that hold diagrams, as a tree. Folders with no
+  // .drawio anywhere below never appear, since the server lists only diagrams.
+  function buildTree(files) {
+    const root = { name: '', path: '', folders: new Map(), files: [] };
+    for (const f of files) {
+      const parts = f.path.split('/');
+      let node = root;
+      for (const part of parts.slice(0, -1)) {
+        if (!node.folders.has(part)) {
+          const path = node.path ? node.path + '/' + part : part;
+          node.folders.set(part, { name: part, path, folders: new Map(), files: [] });
+        }
+        node = node.folders.get(part);
+      }
+      node.files.push({ ...f, name: parts[parts.length - 1] });
+    }
+    return compact(root);
+  }
+
+  // VS Code's compact folders: a folder whose only child is a folder shows as "a/b".
+  function compact(node) {
+    for (const [key, child] of node.folders) {
+      let merged = child;
+      while (merged.files.length === 0 && merged.folders.size === 1) {
+        const only = merged.folders.values().next().value;
+        merged = { ...only, name: merged.name + '/' + only.name };
+      }
+      node.folders.set(key, compact(merged));
+    }
+    return node;
+  }
+
+  function renderNode(node, depth) {
+    const rows = [];
+    const indent = px => (8 + depth * 14 + px) + 'px';
+    for (const folder of [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+      const isOpen = !collapsed.has(folder.path);
       const b = document.createElement('button');
+      b.className = 'folder';
+      b.style.paddingLeft = indent(0);
+      b.setAttribute('aria-expanded', isOpen);
+      const chevron = document.createElement('span');
+      chevron.className = 'chevron';
+      chevron.textContent = isOpen ? '▾' : '▸';
+      b.append(chevron, folder.name);
+      b.onclick = () => {
+        if (isOpen) collapsed.add(folder.path); else collapsed.delete(folder.path);
+        saveCollapsed();
+        renderTree(lastFiles);
+      };
+      rows.push(b);
+      if (isOpen) rows.push(...renderNode(folder, depth + 1));
+    }
+    for (const f of [...node.files].sort((a, b) => a.name.localeCompare(b.name))) {
+      const b = document.createElement('button');
+      b.style.paddingLeft = indent(14);
+      b.title = f.path;
       b.setAttribute('aria-current', f.path === current);
-      b.textContent = f.path;
+      b.textContent = f.name;
       const when = document.createElement('small');
       when.textContent = ago(f.mtime);
       b.appendChild(when);
       b.onclick = () => { follow.checked = false; select(f.path); poll(); };
-      list.appendChild(b);
+      rows.push(b);
     }
+    return rows;
+  }
+
+  function renderTree(files) {
+    lastFiles = files;
+    // the current minute also refreshes the "… ago" labels
+    const key = files.map(f => f.path + f.version).join('|') + current
+              + [...collapsed].join('|') + Math.floor(Date.now() / 60000);
+    if (key === shownTree) return;
+    shownTree = key;
+    list.replaceChildren(...renderNode(buildTree(files), 0));
   }
 
   function select(path) {
     if (path === current) return;
+    // open the folders down to the shown diagram
+    for (let i = path.indexOf('/'); i !== -1; i = path.indexOf('/', i + 1)) collapsed.delete(path.slice(0, i));
+    saveCollapsed();
     current = path;
     version = null;
     fitScale = null;
@@ -198,7 +271,7 @@
       }
       if (follow.checked && files[0].path !== current) select(files[0].path);   // newest first
       else if (!files.some(f => f.path === current)) select(files[0].path);
-      renderList(files);
+      renderTree(files);
       const entry = files.find(f => f.path === current);
       // draw.io's viewer defers its setup while its container has no width
       // (a hidden pane) and only resumes on a DOM attribute change, which
