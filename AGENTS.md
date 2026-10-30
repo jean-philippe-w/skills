@@ -24,17 +24,17 @@ Skills live in bucket folders under `skills/`:
 
 ## Release
 
-Managed installs (the Claude Code, Codex and Copilot plugin routes) update only when the plugin version changes.
+Work happens on `main`, with no release branch. Unreleased commits there reach nobody on their own: managed installs (the Claude Code, Codex and Copilot plugin routes) update only when the plugin version changes, and skills.sh installs only on `npx skills update`.
 
 1. Bump `version` in `package.json` and `.claude-plugin/plugin.json` together.
 2. Add the release to `CHANGELOG.md`.
 3. Run `npm test`, `npm run check` and `claude plugin validate .`. Its one expected warning is that the root `CLAUDE.md` is not loaded by the plugin: that file is for contributors.
 4. Commit, tag `vX.Y.Z`, push `main` and the tag.
 
-To try a change the way a stranger would before releasing it, push it to the `next` branch and install from there:
+To try a change the way a stranger would, push it to `main` and install it in a fresh folder, then start a new agent session there:
 
 ```bash
-npx skills@latest add https://github.com/wingertjp/skills/tree/next/skills/engineering/architect
+npx skills@latest add wingertjp/skills -a claude-code -y
 ```
 
 ## Local development
